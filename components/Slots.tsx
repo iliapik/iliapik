@@ -15,9 +15,11 @@ const Slots: React.FC<SlotsProps> = ({ balance, onWin, onLose, onBack }) => {
   const [spinning, setSpinning] = useState([false, false, false]);
   const [bet, setBet] = useState(100);
   const [lastWin, setLastWin] = useState(0);
-  const isFirstRender = useRef(true);
+  
+  // Track first render to prevent "auto-win" on entry
+  const isInitialized = useRef(false);
 
-  // Helper to get a random symbol based on weights
+  // Helper to get a random symbol based on probability weights
   const getRandomWeightedSymbol = () => {
     const totalWeight = Object.values(SLOT_WEIGHTS).reduce((a, b) => a + b, 0);
     let random = Math.random() * totalWeight;
@@ -31,7 +33,9 @@ const Slots: React.FC<SlotsProps> = ({ balance, onWin, onLose, onBack }) => {
   const spin = () => {
     if (balance < bet || spinning.some(s => s)) return;
     
-    isFirstRender.current = false;
+    // Once player clicks spin, we are fully initialized and ready for result checking
+    isInitialized.current = true;
+    
     onLose(bet);
     setLastWin(0);
     setSpinning([true, true, true]);
@@ -43,6 +47,7 @@ const Slots: React.FC<SlotsProps> = ({ balance, onWin, onLose, onBack }) => {
       const reelInterval = setInterval(() => {
         setReels(prev => {
           const next = [...prev];
+          // Visual spinning: random fast symbols
           next[i] = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
           return next;
         });
@@ -51,7 +56,7 @@ const Slots: React.FC<SlotsProps> = ({ balance, onWin, onLose, onBack }) => {
           clearInterval(reelInterval);
           setSpinning(prev => {
             const next = [...prev];
-            // Final stop uses weighted logic for the house edge
+            // Final stop uses weighted logic to preserve 90% RTP
             next[i] = getRandomWeightedSymbol();
             return next;
           });
@@ -61,8 +66,8 @@ const Slots: React.FC<SlotsProps> = ({ balance, onWin, onLose, onBack }) => {
   };
 
   useEffect(() => {
-    // Only check result if we are NOT on the first render and NOT currently spinning
-    if (!isFirstRender.current && spinning.every(s => !s)) {
+    // Only check results if a real spin just finished
+    if (isInitialized.current && spinning.every(s => !s)) {
       checkResult(reels);
     }
   }, [spinning]);
@@ -70,16 +75,16 @@ const Slots: React.FC<SlotsProps> = ({ balance, onWin, onLose, onBack }) => {
   const checkResult = (res: string[]) => {
     let winAmount = 0;
     
-    // 3 of a kind
+    // Jackpot: 3 of a kind
     if (res[0] === res[1] && res[1] === res[2]) {
       const multiplier = SLOT_PAYOUTS[res[0]] || 5;
       winAmount = bet * multiplier;
     } 
-    // Any 2 of a kind (Adjacent)
+    // Small Payout: Pair (Adjacent)
     else if (res[0] === res[1] || res[1] === res[2]) {
       const matchSymbol = res[1];
-      // Weighted pair payout - small return to keep engagement without exceeding 90% RTP
-      const pairMult = Math.max(0.2, (SLOT_PAYOUTS[matchSymbol] || 2) * 0.1);
+      // Small consolidation prize to keep players engaged (0.5x to 1x bet)
+      const pairMult = Math.max(0.5, (SLOT_PAYOUTS[matchSymbol] || 2) * 0.05);
       winAmount = Math.floor(bet * pairMult);
     }
 
@@ -96,7 +101,7 @@ const Slots: React.FC<SlotsProps> = ({ balance, onWin, onLose, onBack }) => {
       </button>
 
       <div className="relative group scale-90 sm:scale-100">
-        <div className="absolute -inset-4 bg-gradient-to-r from-amber-500 to-yellow-500 rounded-[4rem] blur opacity-10" />
+        <div className="absolute -inset-4 bg-gradient-to-r from-indigo-500 to-amber-500 rounded-[4rem] blur opacity-10" />
         
         <div className="bg-slate-800 border-8 border-slate-700 rounded-[3.5rem] p-8 sm:p-10 shadow-2xl relative flex flex-col items-center max-w-md w-full">
           <div className="mb-6 flex items-center gap-2 text-amber-500">
@@ -132,7 +137,7 @@ const Slots: React.FC<SlotsProps> = ({ balance, onWin, onLose, onBack }) => {
               className={`w-full py-5 rounded-[2rem] font-black text-2xl shadow-2xl transition-all flex items-center justify-center gap-4 border-b-8 ${
                 spinning.some(s => s) 
                   ? 'bg-slate-700 border-slate-800 cursor-not-allowed translate-y-1' 
-                  : 'bg-amber-500 hover:bg-amber-400 active:translate-y-2 active:border-b-0 border-amber-700 shadow-amber-500/30'
+                  : 'bg-indigo-600 hover:bg-indigo-500 active:translate-y-2 active:border-b-0 border-indigo-800 shadow-indigo-500/30'
               }`}
             >
               <RotateCw className={`w-8 h-8 ${spinning.some(s => s) ? 'animate-spin' : ''}`} />
@@ -149,8 +154,8 @@ const Slots: React.FC<SlotsProps> = ({ balance, onWin, onLose, onBack }) => {
       </div>
 
       <div className="mt-8 text-center w-full max-w-md opacity-40">
-        <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-2">House Edge Logic Active</div>
-        <div className="text-[8px] text-slate-600 font-bold uppercase tracking-widest">Random Number Generator Certified • Statistical RTP 90%</div>
+        <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-2">Platform Average Logic Active</div>
+        <div className="text-[8px] text-slate-600 font-bold uppercase tracking-widest">Weighted Random RNG • Global RTP Target 90%</div>
       </div>
     </div>
   );

@@ -9,7 +9,7 @@ export const SLOT_SYMBOLS = ['🍒', '🍋', '🍉', '🍇', '🔔', '⭐', '�
 /**
  * SLOT WEIGHTS
  * Higher weight = more frequent appearance on the reel.
- * Total weight across all symbols defines the probability space.
+ * Total weight across all symbols is 100 for easy probability calculation.
  */
 export const SLOT_WEIGHTS: Record<string, number> = {
   '🍒': 25,
@@ -26,19 +26,20 @@ export const SLOT_WEIGHTS: Record<string, number> = {
 
 /**
  * Payouts targeting an overall slot RTP of ~88-90%
- * Calibrated with weighted random selection and pair rewards.
+ * Calibrated with weighted random selection. 
+ * Includes the requested "900x" high-volatility jackpot for the top symbol.
  */
 export const SLOT_PAYOUTS: Record<string, number> = {
   '🍒': 2,
-  '🍋': 4,
-  '🍉': 6,
-  '🍇': 10,
-  '🔔': 20,
-  '⭐': 40,
-  '💎': 80,
-  '7️⃣': 200,
+  '🍋': 5,
+  '🍉': 10,
+  '🍇': 15,
+  '🔔': 25,
+  '⭐': 50,
+  '💎': 100,
+  '7️⃣': 250,
   '🍀': 500,
-  '💰': 1000 
+  '💰': 900 
 };
 
 export const COLORS = [

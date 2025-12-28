@@ -4,6 +4,7 @@ import GameHub from './components/GameHub';
 import TwentyOne from './components/TwentyOne';
 import Roulette from './components/Roulette';
 import Slots from './components/Slots';
+import Farm from './components/Farm';
 import MusicPlayer from './components/MusicPlayer';
 import { Screen } from './types';
 import { AUTHOR_CODE, AUTHOR_REWARD, INITIAL_BALANCE } from './constants';
@@ -70,6 +71,13 @@ const App: React.FC = () => {
           balance={balance} 
           onWin={amt => setBalance(b => b + amt)} 
           onLose={amt => setBalance(b => b - amt)}
+          onBack={handleBackToHub}
+        />
+      )}
+
+      {screen === 'farm' && (
+        <Farm 
+          onEarn={() => setBalance(b => b + 1)}
           onBack={handleBackToHub}
         />
       )}

@@ -1,70 +1,28 @@
+
 import React, { useState, useEffect } from 'react';
-import StackGame from './components/StackGame';
-import UIOverlay from './components/UIOverlay';
-import { GameStatus, PlayerStats } from './types';
-import { AUTHOR_CODE, AUTHOR_REWARD, INITIAL_BALANCE, WINNINGS_MULTIPLIER } from './constants';
+import GameHub from './components/GameHub';
+import TwentyOne from './components/TwentyOne';
+import Roulette from './components/Roulette';
+import Slots from './components/Slots';
+import MusicPlayer from './components/MusicPlayer';
+import { Screen } from './types';
+import { AUTHOR_CODE, AUTHOR_REWARD, INITIAL_BALANCE } from './constants';
 
 const App: React.FC = () => {
-  // Game State
-  const [status, setStatus] = useState<GameStatus>('idle');
-  const [level, setLevel] = useState(0);
+  const [screen, setScreen] = useState<Screen>('hub');
+  const [musicVolume, setMusicVolume] = useState(40);
   
-  // Economy State (Persisted in localStorage in a real app, keeping simple here)
   const [balance, setBalance] = useState(() => {
     const saved = localStorage.getItem('mopscoin_balance');
     return saved ? parseInt(saved) : INITIAL_BALANCE;
   });
 
-  const [currentBet, setCurrentBet] = useState(0);
-  const [potentialWinnings, setPotentialWinnings] = useState(0);
-
-  // Persistence
   useEffect(() => {
     localStorage.setItem('mopscoin_balance', balance.toString());
   }, [balance]);
 
-  // Actions
-  const handleStartBetting = () => {
-    setStatus('betting');
-  };
-
-  const handleConfirmBet = (amount: number) => {
-    if (amount > balance) return;
-    setBalance(prev => prev - amount);
-    setCurrentBet(amount);
-    setPotentialWinnings(amount); // Initial winnings is just the bet
-    setLevel(0);
-    setStatus('playing');
-  };
-
-  const handlePlaceBlock = (success: boolean, currentStackHeight: number) => {
-    if (success) {
-      setLevel(currentStackHeight);
-      // Calculate new winnings: Bet * (1 + level * multiplier)
-      // Level starts at 0 for base, so 1st successful stack is level 1
-      const multiplier = 1 + (currentStackHeight * WINNINGS_MULTIPLIER);
-      const newWinnings = currentBet * multiplier;
-      setPotentialWinnings(newWinnings);
-    }
-  };
-
-  const handleGameOver = () => {
-    setStatus('gameover');
-    setCurrentBet(0);
-    setPotentialWinnings(0);
-    setLevel(0);
-  };
-
-  const handleCollect = () => {
-    setBalance(prev => prev + potentialWinnings);
-    setStatus('victory');
-  };
-
-  const handleRestart = () => {
-    setStatus('idle');
-    setPotentialWinnings(0);
-    setCurrentBet(0);
-    setLevel(0);
+  const handleBackToHub = () => {
+    setScreen('hub');
   };
 
   const handleRedeemCode = (code: string): boolean => {
@@ -76,26 +34,45 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full h-screen bg-slate-900 overflow-hidden">
-      <StackGame 
-        status={status}
-        onPlaceBlock={handlePlaceBlock}
-        onGameOver={handleGameOver}
-        level={level}
-      />
-      
-      <UIOverlay
-        balance={balance}
-        currentBet={currentBet}
-        potentialWinnings={potentialWinnings}
-        level={level}
-        status={status}
-        onStartBetting={handleStartBetting}
-        onConfirmBet={handleConfirmBet}
-        onCollect={handleCollect}
-        onRestart={handleRestart}
-        onRedeemCode={handleRedeemCode}
-      />
+    <div className="relative w-full h-screen bg-[#0f172a] overflow-hidden font-sans text-slate-100">
+      <MusicPlayer volume={musicVolume} />
+
+      {screen === 'hub' && (
+        <GameHub 
+          onSelectGame={setScreen} 
+          balance={balance} 
+          musicVolume={musicVolume}
+          setMusicVolume={setMusicVolume}
+          onRedeemCode={handleRedeemCode}
+        />
+      )}
+
+      {screen === 'twenty-one' && (
+        <TwentyOne 
+          balance={balance} 
+          onWin={amt => setBalance(b => b + amt)} 
+          onLose={amt => setBalance(b => b - amt)}
+          onBack={handleBackToHub}
+        />
+      )}
+
+      {screen === 'roulette' && (
+        <Roulette 
+          balance={balance} 
+          onWin={amt => setBalance(b => b + amt)} 
+          onLose={amt => setBalance(b => b - amt)}
+          onBack={handleBackToHub}
+        />
+      )}
+
+      {screen === 'slots' && (
+        <Slots 
+          balance={balance} 
+          onWin={amt => setBalance(b => b + amt)} 
+          onLose={amt => setBalance(b => b - amt)}
+          onBack={handleBackToHub}
+        />
+      )}
     </div>
   );
 };

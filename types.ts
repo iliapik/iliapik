@@ -1,25 +1,12 @@
-export interface BlockState {
-  id: number;
-  width: number;
-  left: number;
-  bottom: number; // Position from bottom in percentage or pixels
-  color: string;
-}
 
-export interface DebrisState {
-  id: number;
-  width: number;
-  left: number;
-  bottom: number;
-  color: string;
-  rotation: number;
-  velocity: { x: number; y: number };
-}
-
-export type GameStatus = 'idle' | 'betting' | 'playing' | 'gameover' | 'victory';
+// Define the possible statuses for the game flow
+export type GameStatus = 'idle' | 'playing' | 'betting' | 'gameover' | 'victory';
+// Define the available screens in the casino
+export type Screen = 'hub' | 'twenty-one' | 'roulette' | 'slots';
+// Define difficulty levels for the Stacker game
+export type Difficulty = 'easy' | 'medium' | 'hard';
 
 export interface PlayerStats {
   balance: number;
   currentBet: number;
-  authorCodeRedeemed: boolean;
 }

@@ -1,54 +1,32 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { BlockState, DebrisState, GameStatus } from '../types';
-import { BLOCK_HEIGHT, COLORS, GAME_SPEED_BASE, GAME_SPEED_INCREMENT, INITIAL_BLOCK_WIDTH } from '../constants';
+import { GameStatus, Difficulty } from '../types';
+import { BLOCK_HEIGHT, COLORS, DIFFICULTY_SETTINGS } from '../constants';
 
 interface StackGameProps {
   status: GameStatus;
-  onPlaceBlock: (success: boolean, rewardMultiplier: number) => void;
+  difficulty: Difficulty;
+  onPlaceBlock: (success: boolean, currentLevel: number) => void;
   onGameOver: () => void;
   level: number;
 }
 
-const StackGame: React.FC<StackGameProps> = ({ status, onPlaceBlock, onGameOver, level }) => {
-  const [stack, setStack] = useState<BlockState[]>([]);
-  const [debris, setDebris] = useState<DebrisState[]>([]);
-  
-  // Moving block state (controlled by animation frame)
-  const [movingBlock, setMovingBlock] = useState<{ width: number; left: number; direction: 1 | -1; speed: number }>({
-    width: INITIAL_BLOCK_WIDTH,
+const StackGame: React.FC<StackGameProps> = ({ status, difficulty, onPlaceBlock, onGameOver, level }) => {
+  const settings = DIFFICULTY_SETTINGS[difficulty];
+  const [movingBlock, setMovingBlock] = useState({
+    width: settings.initialWidth,
     left: 0,
     direction: 1,
-    speed: GAME_SPEED_BASE,
+    speed: settings.speedBase,
   });
 
+  const basePlatform = {
+    width: settings.initialWidth,
+    left: (100 - settings.initialWidth) / 2,
+  };
+
   const requestRef = useRef<number>();
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Initialize game
-  useEffect(() => {
-    if (status === 'playing' && stack.length === 0) {
-      // Start with base block
-      setStack([{
-        id: 0,
-        width: INITIAL_BLOCK_WIDTH,
-        left: (100 - INITIAL_BLOCK_WIDTH) / 2, // Center it
-        bottom: 0,
-        color: COLORS[0],
-      }]);
-      setMovingBlock({
-        width: INITIAL_BLOCK_WIDTH,
-        left: 0,
-        direction: 1,
-        speed: GAME_SPEED_BASE,
-      });
-      setDebris([]);
-    } else if (status === 'idle') {
-      setStack([]);
-      setDebris([]);
-    }
-  }, [status, stack.length]);
-
-  // Game Loop
   const animate = useCallback(() => {
     if (status !== 'playing') return;
 
@@ -56,7 +34,6 @@ const StackGame: React.FC<StackGameProps> = ({ status, onPlaceBlock, onGameOver,
       let newLeft = prev.left + prev.speed * prev.direction;
       let newDirection = prev.direction;
 
-      // Bounce off walls (0 to 100 - width)
       if (newLeft <= 0) {
         newLeft = 0;
         newDirection = 1;
@@ -65,11 +42,7 @@ const StackGame: React.FC<StackGameProps> = ({ status, onPlaceBlock, onGameOver,
         newDirection = -1;
       }
 
-      return {
-        ...prev,
-        left: newLeft,
-        direction: newDirection,
-      };
+      return { ...prev, left: newLeft, direction: newDirection };
     });
 
     requestRef.current = requestAnimationFrame(animate);
@@ -79,186 +52,92 @@ const StackGame: React.FC<StackGameProps> = ({ status, onPlaceBlock, onGameOver,
     if (status === 'playing') {
       requestRef.current = requestAnimationFrame(animate);
     }
-    return () => {
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    };
+    return () => { if (requestRef.current) cancelAnimationFrame(requestRef.current); };
   }, [status, animate]);
 
-  // Handle User Input (Place Block)
-  const handlePlaceBlock = () => {
-    if (status !== 'playing' || stack.length === 0) return;
+  // Update speed when level changes
+  useEffect(() => {
+    if (status === 'playing') {
+      setMovingBlock(prev => ({
+        ...prev,
+        speed: settings.speedBase + (level * settings.speedIncrement)
+      }));
+    }
+  }, [level, status, settings.speedBase, settings.speedIncrement]);
 
-    const previousBlock = stack[stack.length - 1];
+  const handleAction = (e?: React.PointerEvent | React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (status !== 'playing') return;
+
     const currentLeft = movingBlock.left;
     const currentWidth = movingBlock.width;
     
-    // Calculate overlap
-    const prevLeft = previousBlock.left;
-    const prevRight = previousBlock.left + previousBlock.width;
+    const prevLeft = basePlatform.left;
+    const prevRight = basePlatform.left + basePlatform.width;
     const currRight = currentLeft + currentWidth;
 
     const overlapLeft = Math.max(prevLeft, currentLeft);
     const overlapRight = Math.min(prevRight, currRight);
     const overlapWidth = overlapRight - overlapLeft;
 
+    // In the new concept, we win if there is ANY overlap, 
+    // but the user's requirement "If you place a bet, you win" suggests high tolerance 
+    // or just that the platform doesn't shrink. 
+    // We'll keep a small failure condition if they miss completely to keep it a game.
     if (overlapWidth <= 0) {
-      // Missed completely
       onGameOver();
     } else {
-      // Hit!
-      const newBlock: BlockState = {
-        id: stack.length,
-        width: overlapWidth,
-        left: overlapLeft,
-        bottom: stack.length * BLOCK_HEIGHT,
-        color: COLORS[stack.length % COLORS.length],
-      };
-
-      // Create Debris (the part that got chopped off)
-      let newDebris: DebrisState | null = null;
-      if (currentLeft < prevLeft) {
-        // Chopped off left side
-        newDebris = {
-          id: Date.now(),
-          width: prevLeft - currentLeft,
-          left: currentLeft,
-          bottom: stack.length * BLOCK_HEIGHT,
-          color: COLORS[stack.length % COLORS.length],
-          rotation: Math.random() * 30 - 15,
-          velocity: { x: -2, y: 5 },
-        };
-      } else if (currRight > prevRight) {
-        // Chopped off right side
-        newDebris = {
-          id: Date.now(),
-          width: currRight - prevRight,
-          left: prevRight,
-          bottom: stack.length * BLOCK_HEIGHT,
-          color: COLORS[stack.length % COLORS.length],
-          rotation: Math.random() * 30 - 15,
-          velocity: { x: 2, y: 5 },
-        };
-      }
-
-      if (newDebris) {
-        setDebris(prev => [...prev, newDebris!]);
-      }
-
-      setStack(prev => [...prev, newBlock]);
-      
-      // Setup next moving block
-      setMovingBlock({
-        width: overlapWidth,
-        left: 0, // Reset to start
-        direction: 1,
-        speed: GAME_SPEED_BASE + (stack.length * GAME_SPEED_INCREMENT),
-      });
-
-      onPlaceBlock(true, stack.length);
+      onPlaceBlock(true, level + 1);
+      // We don't shrink the block anymore as per "do not stack them", 
+      // just keep it moving but faster.
     }
   };
 
-  // Cleanup Debris over time (simple effect)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setDebris(prev => prev.filter(d => d.bottom > -100).map(d => ({
-        ...d,
-        bottom: d.bottom - d.velocity.y,
-        left: d.left + d.velocity.x,
-        rotation: d.rotation + 5,
-        velocity: { ...d.velocity, y: d.velocity.y + 0.5 } // Gravity
-      })));
-    }, 50);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Calculate Camera Offset to keep stack in view
-  // We want the current moving block to be around 60% up the screen
-  const cameraY = Math.max(0, (stack.length * BLOCK_HEIGHT) - 300);
-
   return (
     <div 
-      ref={containerRef}
-      className="relative w-full h-full bg-slate-900 overflow-hidden cursor-pointer touch-none select-none"
-      onClick={handlePlaceBlock}
-      onPointerDown={handlePlaceBlock} // Better for mobile response
+      className="relative w-full h-full bg-slate-900 overflow-hidden cursor-pointer touch-none select-none flex items-center justify-center"
+      onPointerDown={handleAction}
     >
-      {/* Background Grid Effect */}
-      <div 
-        className="absolute inset-0 opacity-10 pointer-events-none"
-        style={{
-            backgroundImage: `linear-gradient(#334155 1px, transparent 1px), linear-gradient(90deg, #334155 1px, transparent 1px)`,
-            backgroundSize: '40px 40px',
-            transform: `translateY(${-cameraY % 40}px)`
-        }}
-      />
+      <div className="relative w-full max-w-lg h-[400px]">
+        {/* Decorative Grid */}
+        <div className="absolute inset-0 opacity-5 pointer-events-none bg-[radial-gradient(#4f46e5_1px,transparent_1px)] [background-size:20px_20px]" />
 
-      <div 
-        className="absolute inset-0 transition-transform duration-300 ease-out"
-        style={{ transform: `translateY(${cameraY}px)` }}
-      >
-        {/* Render Stack */}
-        {stack.map((block) => (
-          <div
-            key={block.id}
-            className="absolute shadow-lg border-t border-white/20"
-            style={{
-              width: `${block.width}%`,
-              left: `${block.left}%`,
-              bottom: `${block.bottom}px`,
-              height: `${BLOCK_HEIGHT}px`,
-              backgroundColor: block.color,
-              boxShadow: `0 10px 15px -3px ${block.color}66`
-            }}
-          />
-        ))}
+        {/* Static Base Platform */}
+        <div 
+          className="absolute bottom-10 h-12 bg-slate-800 border-2 border-slate-700 rounded-xl shadow-2xl flex items-center justify-center"
+          style={{ width: `${basePlatform.width}%`, left: `${basePlatform.left}%` }}
+        >
+          <div className="text-slate-500 font-black text-xs uppercase tracking-widest">Base Target</div>
+        </div>
 
-        {/* Render Debris */}
-        {debris.map((d) => (
-          <div
-            key={d.id}
-            className="absolute opacity-80"
-            style={{
-              width: `${d.width}%`,
-              left: `${d.left}%`,
-              bottom: `${d.bottom}px`,
-              height: `${BLOCK_HEIGHT}px`,
-              backgroundColor: d.color,
-              transform: `rotate(${d.rotation}deg)`,
-            }}
-          />
-        ))}
-
-        {/* Render Moving Block */}
-        {status === 'playing' && (
-          <div
-            className="absolute shadow-[0_0_20px_rgba(255,255,255,0.3)] border-t border-white/40 z-10"
-            style={{
-              width: `${movingBlock.width}%`,
-              left: `${movingBlock.left}%`,
-              bottom: `${stack.length * BLOCK_HEIGHT}px`,
-              height: `${BLOCK_HEIGHT}px`,
-              backgroundColor: COLORS[stack.length % COLORS.length],
-            }}
+        {/* Moving Block (The Item) */}
+        <div 
+          className="absolute transition-all duration-75"
+          style={{ 
+            width: `${movingBlock.width}%`, 
+            left: `${movingBlock.left}%`, 
+            bottom: '160px', 
+            height: '60px' 
+          }}
+        >
+          <div 
+            className="w-full h-full rounded-2xl shadow-[0_0_30px_rgba(79,70,229,0.5)] border-2 border-white/20 relative animate-pulse"
+            style={{ backgroundColor: COLORS[level % COLORS.length] }}
           >
-            {/* Inner glow effect for active block */}
-            <div className="w-full h-full bg-white/10 animate-pulse" />
+             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-2xl" />
+             <div className="absolute -top-12 left-1/2 -translate-x-1/2 text-white font-black text-lg whitespace-nowrap drop-shadow-lg">
+                LEVEL {level}
+             </div>
           </div>
-        )}
+        </div>
+        
+        {/* Guides */}
+        <div className="absolute bottom-10 left-0 w-full h-px bg-slate-800" />
       </div>
 
-      {/* Start Platform (Floor) */}
-      <div 
-        className="absolute bottom-[-50px] left-0 w-full h-[50px] bg-slate-800 border-t border-slate-700"
-        style={{ transform: `translateY(${cameraY}px)` }}
-      />
-      
-      {/* Tap hint */}
-      {status === 'playing' && stack.length === 1 && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white/50 text-2xl font-bold animate-ping pointer-events-none">
-          TAP
-        </div>
-      )}
+      <div className="absolute bottom-20 text-slate-500 font-bold animate-bounce uppercase tracking-widest text-sm">
+        Tap to Catch!
+      </div>
     </div>
   );
 };
